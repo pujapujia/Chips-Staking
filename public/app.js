@@ -1,7 +1,7 @@
 // Konfigurasi
 const contractAddress = "0x5Df71A23AF0A7F8C4207b4e2750708b4Ae7Fa2Ca";
 const feeReceiver = "0x0079352b27fDce7DDB744644dEFBcdB99cb5A9b9";
-const RPC_URL = "http://20.63.3.101:8545";
+const RPC_URL = "https://holistic-purple-period.glitch.me";
 const CHAIN_ID = 714; // Fix ke 714 (0x2ca)
 const USDT_ADDRESS = "0x47C9e3E4078Edb31b24C72AF65d64dA21041801E";
 const CHIPS_ADDRESS = "0x0000000000000000000000000000000000000000"; // Native token
