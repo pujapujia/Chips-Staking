@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CHIPS Staking</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>CHIPS Staking</h1>
+        <p>Pool Balance: <span id="poolBalance">0</span> USDT, <span id="poolBalanceChips">0</span> CHIPS</p>
+        <p>Total Stakers: <span id="totalStaker">0</span></p>
+        <p id="status"></p>
+        <p id="walletStatus"></p>
+        <button id="connectWallet" onclick="connectWallet()">Connect Wallet</button>
+
+        <div class="tab-buttons">
+            <button id="defaultPoolTab" onclick="showTab('defaultPool')">Top Pool</button>
+            <button id="newPoolTab" onclick="showTab('newPool')" disabled>New Pool</button>
+            <button id="createPoolTab" onclick="showTab('createPool')" disabled>Create Pool</button>
+            <button id="myCreatedPoolsTab" onclick="showTab('myCreatedPools')" disabled>My Pools</button>
+            <button id="myStakesTab" onclick="showTab('myStakes')" disabled>My Stakes</button>
+            <button id="creatorToolTab" onclick="showCreatorTab('creatorTool')">Creator Tools</button>
+            <button id="ownerControlTab" onclick="showTab('ownerControl')" disabled>Owner Control</button>
+        </div>
+
+        <div class="tab" id="defaultPool">
+            <div id="defaultPoolCard"></div>
+        </div>
+        <div class="tab" id="newPool">
+            <div id="newPoolCard"></div>
+        </div>
+        <div class="tab" id="createPool">
+            <div id="createPoolForm"></div>
+        </div>
+        <div class="tab" id="myCreatedPools">
+            <div id="poolList"></div>
+        </div>
+        <div class="tab" id="myStakes">
+            <div id="myStakesCard"></div>
+            <p id="contractBalances"></p>
+        </div>
+        <div class="tab" id="creatorTool">
+            <h2>Creator Tools</h2>
+            <p>Manage your created pools below.</p>
+            <div id="creatorToolContent"></div>
+        </div>
+        <div class="tab" id="ownerControl">
+            <div class="owner-controls">
+                <!-- Activity Report -->
+                <div class="control-section">
+                    <h3>Activity Report</h3>
+                    <div class="control-group">
+                        <button onclick="downloadUserInteractionsPDF()">Download User Activity PDF</button>
+                    </div>
+                </div>
+                <!-- Fund Pool Rewards -->
+                <div class="control-section">
+                    <h3>Fund Pool Rewards</h3>
+                    <div class="control-group">
+                        <label for="fundPoolId">Select Pool ID:</label>
+                        <select id="fundPoolId">
+                            <option value="all">All Pools</option>
+                        </select>
+                        <label for="fundAmount">Amount:</label>
+                        <input type="number" id="fundAmount" placeholder="Amount" step="0.01" min="0.01">
+                        <button onclick="fundReward()">Fund Reward</button>
+                    </div>
+                </div>
+                <!-- Update Pool APR -->
+                <div class="control-section">
+                    <h3>Update Pool APR</h3>
+                    <div class="control-group">
+                        <label for="updatePoolId">Select Pool ID:</label>
+                        <select id="updatePoolId">
+                            <option value="all">All Pools</option>
+                        </select>
+                        <label for="newApr">New APR (%):</label>
+                        <input type="number" id="newApr" placeholder="360–10000%" min="360" max="10000">
+                        <button onclick="updateApr()">Update APR</button>
+                    </div>
+                </div>
+                <!-- Update Lock Period -->
+                <div class="control-section">
+                    <h3>Update Lock Period</h3>
+                    <div class="control-group">
+                        <label for="editPoolId">Select Pool ID:</label>
+                        <select id="editPoolId">
+                            <option value="all">All Pools</option>
+                        </select>
+                        <label for="newLockPeriod">New Lock Period (days):</label>
+                        <input type="number" id="newLockPeriod" placeholder="Days" min="0">
+                        <button onclick="lockNewPeriod()">Update Lock Period</button>
+                    </div>
+                </div>
+                <!-- Withdraw from Pool -->
+                <div class="control-section">
+                    <h3>Withdraw from Pool</h3>
+                    <div class="control-group">
+                        <label for="withdrawPoolId">Select Pool ID:</label>
+                        <select id="withdrawPoolId">
+                            <option value="all">All Pools</option>
+                        </select>
+                        <label for="withdrawPoolToken">Token Address:</label>
+                        <input type="text" id="withdrawPoolToken" placeholder="Token Address">
+                        <label for="withdrawPoolAmount">Amount:</label>
+                        <input type="number" id="withdrawPoolAmount" placeholder="Amount" step="0.01" min="0.01">
+                        <button onclick="withdrawFromPool()">Withdraw</button>
+                    </div>
+                </div>
+                <!-- Manage Pool Visibility -->
+                <div class="control-section">
+                    <h3>Manage Pool Visibility</h3>
+                    <div class="control-group">
+                        <label for="visibilityPoolId">Select Pool ID:</label>
+                        <select id="visibilityPoolId">
+                            <option value="all">All Pools</option>
+                        </select>
+                        <label for="visibilityTicker">Select Token Ticker:</label>
+                        <select id="visibilityTicker">
+                            <option value="all">All Tokens</option>
+                            <option value="CHIPS">CHIPS</option>
+                            <option value="USDT">USDT</option>
+                            <option value="OTHER">Other</option>
+                        </select>
+                        <label for="visibilityToggle">Visibility Toggle:</label>
+                        <select id="visibilityToggle">
+                            <option value="on">Show</option>
+                            <option value="off">Hide</option>
+                        </select>
+                        <button onclick="togglePoolVisibility()">Toggle Pool Visibility</button>
+                    </div>
+                </div>
+                <!-- Deactivate Pools -->
+                <div class="control-section">
+                    <h3>Deactivate Pools</h3>
+                    <div class="control-group">
+                        <label for="poolIdDeactivate">Select Pool ID:</label>
+                        <select id="poolIdDeactivate">
+                            <option value="all">All Pools</option>
+                        </select>
+                        <button onclick="deactivatePool(document.getElementById('poolIdDeactivate').value)">Deactivate Pool</button>
+                        <button onclick="deactivateAllPools()">Deactivate All Pools</button>
+                    </div>
+                </div>
+                <!-- Activate Pools -->
+                <div class="control-section">
+                    <h3>Activate Pools</h3>
+                    <div class="control-group">
+                        <label for="poolIdActivate">Select Pool ID:</label>
+                        <select id="poolIdActivate">
+                            <option value="all">All Pools</option>
+                        </select>
+                        <button onclick="activatePool(document.getElementById('poolIdActivate').value)">Activate Pool</button>
+                        <button onclick="activateAllPools()">Activate All Pools</button>
+                        <p id="allPoolIds"></p>
+                    </div>
+                </div>
+                <!-- Initialize Contract -->
+                <div class="control-section">
+                    <h3>Initialize Contract</h3>
+                    <div class="control-group">
+                        <label for="newImplementationAddress">New Implementation Address:</label>
+                        <input type="text" id="newImplementationAddress" placeholder="0x...">
+                        <button onclick="authorizeUpgrade()">Authorize Upgrade</button>
+                    </div>
+                </div>
+                <!-- Contract Controls -->
+                <div class="control-section">
+                    <h3>Contract Controls</h3>
+                    <div class="control-group">
+                        <button onclick="pauseContract()">Pause Contract</button>
+                        <button onclick="unpauseContract()">Unpause Contract</button>
+                        <button onclick="emergencyPause()">Emergency Pause</button>
+                        <button onclick="emergencyUnpause()">Emergency Unpause</button>
+                    </div>
+                </div>
+                <!-- Withdraw Tokens -->
+                <div class="control-section">
+                    <h3>Withdraw Tokens</h3>
+                    <div class="control-group">
+                        <label for="withdrawToken">Token Address:</label>
+                        <input type="text" id="withdrawToken" placeholder="Token Address (empty for CHIPS)">
+                        <label for="withdrawAmount">Amount:</label>
+                        <input type="number" id="withdrawAmount" placeholder="Amount" step="0.01" min="0.01">
+                        <button onclick="withdrawTokens()">Withdraw Tokens</button>
+                    </div>
+                </div>
+                <!-- Set Creation Fee -->
+                <div class="control-section">
+                    <h3>Set Creation Fee</h3>
+                    <div class="control-group">
+                        <label for="newCreationFee">New Fee (CHIPS):</label>
+                        <input type="number" id="newCreationFee" placeholder="New Fee" step="0.01" min="0">
+                        <button onclick="setCreationFee()">Set Creation Fee</button>
+                    </div>
+                </div>
+                <!-- Menu Visibility -->
+                <div class="control-section menu-visibility">
+                    <h3>Menu Visibility</h3>
+                    <div class="control-group">
+                        <label><input type="checkbox" id="hideDefaultPool" onchange="toggleMenuVisibility('defaultPool')"> Hide Top Pool</label>
+                        <label><input type="checkbox" id="hideNewPool" onchange="toggleMenuVisibility('newPool')"> Hide New Pool</label>
+                        <label><input type="checkbox" id="hideCreatePool" onchange="toggleMenuVisibility('createPool')"> Hide Create Pool</label>
+                        <label><input type="checkbox" id="hideMyCreatedPools" onchange="toggleMenuVisibility('myCreatedPools')"> Hide My Created Pools</label>
+                        <label><input type="checkbox" id="hideMyStakes" onchange="toggleMenuVisibility('myStakes')"> Hide My Stakes</label>
+                        <label><input type="checkbox" id="hideCreatorTool" onchange="toggleMenuVisibility('creatorTool')"> Hide Creator Tool</label>
+                        <label><input type="checkbox" id="hideOwnerControl" onchange="toggleMenuVisibility('ownerControl')"> Hide Owner Control</label>
+                        <button onclick="hideAllMenus()">Hide All Menus</button>
+                        <button onclick="showAllMenus()">Show All Menus</button>
+                    </div>
+                </div>
+            </div>
+            <p id="ownerStatus"></p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.3/jspdf.plugin.autotable.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
