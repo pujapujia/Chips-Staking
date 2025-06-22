@@ -2,7 +2,7 @@
 const contractAddress = "0x5Df71A23AF0A7F8C4207b4e2750708b4Ae7Fa2Ca";
 const feeReceiver = "0x0079352b27fDce7DDB744644dEFBcdB99cb5A9b9";
 const RPC_URL = "https://holistic-purple-period.glitch.me";
-const CHAIN_ID = 714; // Fix ke 714 (0x2ca)
+const CHAIN_ID = 0x2ca; // Fix ke 714 (0x2ca)
 const USDT_ADDRESS = "0x47C9e3E4078Edb31b24C72AF65d64dA21041801E";
 const CHIPS_ADDRESS = "0x0000000000000000000000000000000000000000"; // Native token
 
@@ -1882,50 +1882,104 @@ async function getTokenName(tokenAddress) {
 // Initialize wallet connection
 async function connectWallet() {
   if (!window.ethereum) {
-      document.getElementById('walletStatus').innerText = "Please install MetaMask!";
-      console.log("MetaMask not detected");
-      return;
+    document.getElementById('walletStatus').innerText = "Please install a wallet (e.g., MetaMask)!";
+    console.log("No wallet detected");
+    return;
   }
   try {
-      accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      web3 = new Web3(window.ethereum);
-      document.getElementById('walletStatus').innerText = `Connected: ${accounts[0].substring(0, 6)}...${accounts[0].substring(accounts[0].length - 4)}`;
-      document.getElementById('walletStatus').style.display = 'block';
-      document.getElementById('connectWallet').innerText = 'Disconnect Wallet';
-      document.getElementById('connectWallet').onclick = disconnectWallet;
+    accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    web3 = new Web3(window.ethereum);
+    console.log(`Connected account: ${accounts[0]}`);
+
+    const chainId = await web3.eth.getChainId();
+    console.log(`Connected to chain ID: ${chainId}`);
+    if (chainId !== CHAIN_ID) {
+      console.error(`Wrong network! Expected chain ID ${CHAIN_ID}, got ${chainId}`);
+      document.getElementById('walletStatus').innerText = `Please switch to Sepolia (Chain ID: ${CHAIN_ID}).`;
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: `0x${CHAIN_ID.toString(16)}` }],
+        });
+        console.log("Switched to Sepolia");
+      } catch (switchError) {
+        console.error("Network switch failed:", switchError.message);
+        document.getElementById('walletStatus').innerText = "Failed to switch network.";
+        return;
+      }
+    }
+
+    if (!contractABI || !contractAddress) {
+      console.error("Contract ABI or address not defined");
+      document.getElementById('walletStatus').innerText = "Contract configuration error.";
+      return;
+    }
+
+    try {
       contract = new web3.eth.Contract(contractABI, contractAddress);
+      console.log(`Contract initialized at: ${contractAddress}`);
+    } catch (error) {
+      console.error("Contract initialization failed:", error.message);
+      document.getElementById('walletStatus').innerText = "Invalid contract address or ABI.";
+      return;
+    }
 
-      isOwner = accounts && await contract.methods.hasRole(await contract.methods.DEFAULT_ADMIN_ROLE().call(), accounts[0]).call();
+    try {
+      const adminRole = await contract.methods.DEFAULT_ADMIN_ROLE().call();
+      isOwner = accounts && await contract.methods.hasRole(adminRole, accounts[0]).call();
+      console.log(`Owner role check: ${isOwner}`);
+    } catch (error) {
+      console.error("Failed to check owner role:", error.message);
+      document.getElementById('walletStatus').innerText = "Failed to check admin role.";
+      return;
+    }
 
-      // Cek emergency pause status
+    try {
       const emergencyPaused = await contract.methods.emergencyPaused().call();
       if (emergencyPaused && isOwner) {
-          document.getElementById('ownerStatus').innerText = "Contract is emergency paused. Please unpause to enable actions.";
-          console.log("Contract is emergency paused. Owner can unpause.");
+        document.getElementById('ownerStatus').innerText = "Contract is paused. Unpause to enable actions.";
+        console.log("Contract is paused. Owner can unpause.");
       } else if (emergencyPaused) {
-          document.getElementById('status').innerText = "Contract is locked. Please contact the owner.";
-          console.log("Contract is emergency paused. User cannot proceed.");
+        document.getElementById('status').innerText = "Contract is locked. Contact owner.";
+        console.log("Contract is paused. User cannot proceed.");
+        return;
       }
+    } catch (error) {
+      console.error("Failed to check emergency pause:", error.message);
+      document.getElementById('walletStatus').innerText = "Failed to check contract status.";
+      return;
+    }
 
+    try {
       const poolCount = await contract.methods.poolCount().call();
       pinnedPools = (await contract.methods.getPinnedPools(0, poolCount).call()).map(id => Number(id));
       visiblePools = [];
       for (let i = 0; i < poolCount; i++) {
-          const poolInfo = await contract.methods.getPoolInfo(i).call();
-          if (poolInfo.active) visiblePools.push(i);
+        const poolInfo = await contract.methods.getPoolInfo(i).call();
+        if (poolInfo.active) visiblePools.push(i);
       }
-
       console.log(`Initial pinned pools:`, pinnedPools);
       console.log(`Initial visible pools:`, visiblePools);
       console.log(`Wallet connected, isOwner: ${isOwner}, poolCount: ${poolCount}`);
+    } catch (error) {
+      console.error("Failed to load pool data:", error.message);
+      document.getElementById('walletStatus').innerText = "Failed to load pool data.";
+      return;
+    }
 
-      updateUIForRole();
-      enableButtons();
-      await renderOwnerControl();
-      await showTab('defaultPool');
+    document.getElementById('walletStatus').innerText = `Connected: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`;
+    document.getElementById('walletStatus').style.display = 'block';
+    document.getElementById('connectWallet').innerText = 'Disconnect Wallet';
+    document.getElementById('connectWallet').onclick = disconnectWallet;
+
+    updateUIForRole();
+    enableButtons();
+    await renderOwnerControl();
+    await populatePoolDropdown();
+    await showTab('defaultPool');
   } catch (error) {
-      console.error("Failed to connect wallet:", error);
-      document.getElementById('walletStatus').innerText = "Failed to connect wallet. Please try again.";
+    console.error("Failed to connect wallet:", error.message);
+    document.getElementById('walletStatus').innerText = "Failed to connect wallet. Try again.";
   }
 }
 
@@ -1933,17 +1987,24 @@ async function connectWallet() {
 function enableButtons() {
   const buttons = ['defaultPoolTab', 'newPoolTab', 'createPoolTab', 'myCreatedPoolsTab', 'myStakesTab'];
   if (isOwner && accounts) {
-      buttons.push('ownerControlTab');
+    buttons.push('ownerControlTab');
+    buttons.push('creatorToolTab'); // Tambah kalo creator tab juga perlu
   }
   buttons.forEach(id => {
-      const btn = document.getElementById(id);
-      if (btn) {
-          const tabId = id.replace('Tab', '');
-          btn.disabled = (id !== 'defaultPoolTab' && id !== 'ownerControlTab' && hiddenMenus[tabId] && !isOwner) || !accounts;
-      }
+    const btn = document.getElementById(id);
+    if (btn) {
+      const tabId = id.replace('Tab', '');
+      btn.disabled = false; // Enable semua dulu
+      btn.style.display = (hiddenMenus[tabId] && !isOwner) ? 'none' : 'inline-block';
+      btn.style.pointerEvents = 'auto';
+      btn.style.opacity = '1';
+      console.log(`Enabled button: ${id}, display: ${btn.style.display}`);
+    }
   });
   document.querySelectorAll('.pool-card button, #createPoolForm button, .control-section button').forEach(btn => {
-      btn.disabled = (!accounts || (Object.values(hiddenMenus).some(hidden => hidden) && !isOwner && btn.closest('#ownerControl') === null));
+    btn.disabled = !accounts || (!isOwner && btn.closest('#ownerControl'));
+    btn.style.pointerEvents = accounts ? 'auto' : 'none';
+    console.log(`Button ${btn.id || btn.textContent} disabled: ${btn.disabled}`);
   });
 }
 
@@ -1956,36 +2017,36 @@ window.addEventListener('DOMContentLoaded', async () => {
 // Populate Pool Dropdown
 async function populatePoolDropdown() {
   try {
-      if (!contract || !contract.methods) {
-          console.error("Contract not initialized in populatePoolDropdown");
-          return;
+    if (!contract || !contract.methods || !accounts || !accounts[0]) {
+      console.warn("Contract or wallet not initialized in populatePoolDropdown");
+      return;
+    }
+    const poolCount = await contract.methods.poolCount().call();
+    console.log(`Populating dropdown with ${poolCount} pools`);
+    const filterPoolId = document.getElementById('filterPoolId');
+    const filterNewPoolId = document.getElementById('filterNewPoolId');
+    if (!filterPoolId && !filterNewPoolId) {
+      console.warn("Dropdown elements not found");
+      return;
+    }
+    const poolIds = [];
+    for (let i = 0; i < poolCount; i++) {
+      poolIds.push(i);
+    }
+    [filterPoolId, filterNewPoolId].forEach(dropdown => {
+      if (dropdown) {
+        dropdown.innerHTML = '<option value="all">All Pools</option>';
+        poolIds.forEach(id => {
+          const option = document.createElement('option');
+          option.value = id;
+          option.text = `Pool ${id}`;
+          dropdown.appendChild(option);
+        });
       }
-      const poolCount = await contract.methods.poolCount().call();
-      console.log(`Populating dropdown with ${poolCount} pools`);
-      const filterPoolId = document.getElementById('filterPoolId');
-      const filterNewPoolId = document.getElementById('filterNewPoolId');
-      if (!filterPoolId && !filterNewPoolId) {
-          console.warn("Dropdown elements not found");
-          return;
-      }
-      const poolIds = [];
-      for (let i = 0; i < poolCount; i++) {
-          poolIds.push(i);
-      }
-      [filterPoolId, filterNewPoolId].forEach(dropdown => {
-          if (dropdown) {
-              dropdown.innerHTML = '<option value="all">All Pools</option>';
-              poolIds.forEach(id => {
-                  const option = document.createElement('option');
-                  option.value = id;
-                  option.text = `Pool ${id}`;
-                  dropdown.appendChild(option);
-              });
-          }
-      });
-      console.log("Pool dropdowns populated successfully");
+    });
+    console.log("Pool dropdowns populated successfully");
   } catch (error) {
-      console.error("Failed to populate pool dropdowns:", error.message);
+    console.error("Failed to populate pool dropdowns:", error.message);
   }
 }
 
