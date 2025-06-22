@@ -1735,7 +1735,7 @@ const contractABI = [
       "type": "receive"
     }
 ]; 
-// ABI IERC20 (dari contractABI_IERC20 lo)
+// ABI IERC20 (dari IERC20_ABI lo)
 const IERC20_ABI = [
     {
         "inputs": [
@@ -2151,7 +2151,7 @@ async function updateStakeTokenInfo() {
       info.innerText = "Token: CHIPS (Native)";
   } else if (stakeToken === USDT_ADDRESS) {
       try {
-          const tokenContract = new web3.eth.Contract(contractABI_IERC20, stakeToken);
+          const tokenContract = new web3.eth.Contract(IERC20_ABI, stakeToken);
           const name = await tokenContract.methods.name().call();
           info.innerText = `Token: ${name}`;
       } catch (error) {
@@ -4597,7 +4597,7 @@ async function createPool() {
       // Validasi reward token contract
       let tokenName;
       try {
-          const tokenContract = new web3.eth.Contract(contractABI_IERC20, rewardToken);
+          const tokenContract = new web3.eth.Contract(IERC20_ABI, rewardToken);
           tokenName = await tokenContract.methods.name().call();
           const balance = await tokenContract.methods.balanceOf(accounts[0]).call();
           const decimals = await tokenContract.methods.decimals().call();
