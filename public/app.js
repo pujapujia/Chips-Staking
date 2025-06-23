@@ -5,7 +5,17 @@ const RPC_URL = "https://holistic-purple-period.glitch.me";
 const CHAIN_ID = 0x2ca; // Fix ke 714 (0x2ca)
 const USDT_ADDRESS = "0x47C9e3E4078Edb31b24C72AF65d64dA21041801E";
 const CHIPS_ADDRESS = "0x0000000000000000000000000000000000000000"; // Native token
-
+const firebaseConfig = {
+  apiKey: "AIzaSyB8S2QZnt-Q9EOp4cKVLVs-4w4vqprIKgA",
+  authDomain: "chipstake-e2c73.firebaseapp.com",
+  projectId: "chipstake-e2c73",
+  storageBucket: "chipstake-e2c73.firebasestorage.app",
+  messagingSenderId: "190954251209",
+  appId: "1:190954251209:web:89e543d2879b578bbebe18"
+};
+// Initialize Firebase
+const firebaseApp = firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 // ABI disini (diletakkan di variabel, tapi akan ditunjukkan di bawah kode ini)
 const contractABI = [
     {
@@ -1817,22 +1827,17 @@ let displayedPools = []; // Track pool IDs yang udah ditampilkan
 let remainingPools = []; // Track pool IDs yang belum ditampilkan
 
 // Track user interactions
-function trackInteraction(type, poolId) {
-    if (!accounts || !accounts[0]) {
-        console.warn("No account connected for tracking interaction");
-        return;
-    }
-    if (!window.userInteractions || !Array.isArray(window.userInteractions)) {
-        window.userInteractions = [];
-        console.log("Initialized userInteractions as array");
-    }
-    window.userInteractions.push({
-        user: accounts[0],
-        type: type,
-        poolId: poolId,
-        timestamp: new Date().toISOString()
-    });
+async function trackInteraction(type, poolId) {
+  if (!accounts || !accounts[0]) {
+    console.warn("No account connected for tracking interaction");
+    return;
+  }
+  try {
+    await addInteraction(accounts[0], { type, poolId });
     console.log(`Tracked interaction: ${type} for pool ${poolId} by ${accounts[0]}`);
+  } catch (error) {
+    console.error(`Failed to track interaction: ${error.message}`);
+  }
 }
 
 // Fungsi bantu buat ambil desimal token
@@ -5571,107 +5576,147 @@ async function getContractBalances() {
       document.getElementById('status').innerText = "Failed to fetch contract balances.";
   }
 }
-// Download user interactions as PDF
-async function downloadUserInteractionsPDF() {
-  if (!isOwner || !accounts) {
-      console.warn("Owner access required for downloading PDF");
-      document.getElementById('ownerStatus').innerText = "Owner access required.";
-      return;
-  }
+
+// Fungsi buat simpan interaksi ke Firestore
+async function addInteraction(user, action) {
   try {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-
-      doc.setFontSize(14);
-      doc.text("CHIPS Activity Testnet", 20, 10);
-
-      const interactions = Array.isArray(window.userInteractions) ? window.userInteractions : [];
-      if (interactions.length === 0) {
-          console.warn("No interactions found for PDF");
-          doc.setFontSize(10);
-          doc.text("No user activity found.", 20, 20);
-          doc.save('chips_activity_testnet.pdf');
-          document.getElementById('ownerStatus').innerText = "PDF downloaded, but no user activity found.";
-          return;
-      }
-
-      const activityCount = {};
-      interactions.forEach(interaction => {
-          const wallet = interaction.user?.toLowerCase() || 'unknown';
-          activityCount[wallet] = (activityCount[wallet] || 0) + 1;
-      });
-
-      const tableData = Object.entries(activityCount).map(([wallet, count]) => [wallet, count.toString()]);
-      const columns = [
-          { header: 'Wallet User', dataKey: 'wallet' },
-          { header: 'Activity User', dataKey: 'count' }
-      ];
-
-      doc.autoTable({
-          startY: 20,
-          head: [columns.map(col => col.header)],
-          body: tableData,
-          columns: columns,
-          styles: { 
-              fontSize: 10, 
-              cellPadding: 2, 
-              lineWidth: 0.1, 
-              lineColor: [0, 0, 0]
-          },
-          columnStyles: {
-              wallet: { cellWidth: 110 }, // Wallet lebar disesuaikan
-              count: { cellWidth: 30, halign: 'center' }
-          },
-          theme: 'grid'
-      });
-
-      doc.save('chips_activity_testnet.pdf');
-      document.getElementById('ownerStatus').innerText = "CHIPS Activity Testnet PDF downloaded successfully!";
-      console.log(`PDF downloaded with ${tableData.length} user activities`);
+    await db.collection('interactions').add({
+      user: user?.toLowerCase() || 'unknown',
+      action: {
+        type: action.type,
+        poolId: action.poolId
+      },
+      timestamp: new Date().toISOString()
+    });
+    console.log('Interaksi tersimpan!');
   } catch (error) {
-      console.error(`Failed to download PDF: ${error.message}`);
-      document.getElementById('ownerStatus').innerText = "Failed to download PDF. Check console for details.";
+    console.error('Gagal simpan interaksi:', error.message);
   }
 }
 
-//renderActivityReport
+// Fungsi buat ambil interaksi dari Firestore
+async function getInteractions() {
+  try {
+    const snapshot = await db.collection('interactions').get();
+    const interactions = [];
+    snapshot.forEach(doc => {
+      interactions.push(doc.data());
+    });
+    return interactions;
+  } catch (error) {
+    console.error('Gagal ambil interaksi:', error.message);
+    return [];
+  }
+}
+// Download user interactions as PDF
+async function downloadUserInteractionsPDF() {
+  if (!isOwner || !accounts) {
+    console.warn("Owner access required for downloading PDF");
+    document.getElementById('ownerStatus').innerText = "Owner access required.";
+    return;
+  }
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(14);
+    doc.text("CHIPS Activity Testnet", 20, 10);
+
+    // Ambil interaksi dari Firestore
+    const interactions = await getInteractions();
+    if (interactions.length === 0) {
+      console.warn("No interactions found for PDF");
+      doc.setFontSize(10);
+      doc.text("No user activity found.", 20, 20);
+      doc.save('chips_activity_testnet.pdf');
+      document.getElementById('ownerStatus').innerText = "PDF downloaded, but no user activity found.";
+      return;
+    }
+
+    const activityCount = {};
+    interactions.forEach(interaction => {
+      const wallet = interaction.user || 'unknown';
+      activityCount[wallet] = (activityCount[wallet] || 0) + 1;
+    });
+
+    const tableData = Object.entries(activityCount).map(([wallet, count]) => [wallet, count.toString()]);
+    const columns = [
+      { header: 'Wallet User', dataKey: 'wallet' },
+      { header: 'Activity Count', dataKey: 'count' }
+    ];
+
+    doc.autoTable({
+      startY: 20,
+      head: [columns.map(col => col.header)],
+      body: tableData,
+      columns: columns,
+      styles: { 
+        fontSize: 10, 
+        cellPadding: 2, 
+        lineWidth: 0.1, 
+        lineColor: [0, 0, 0]
+      },
+      columnStyles: {
+        wallet: { cellWidth: 110 },
+        count: { cellWidth: 30, halign: 'center' }
+      },
+      theme: 'grid'
+    });
+
+    doc.save('chips_activity_testnet.pdf');
+    document.getElementById('ownerStatus').innerText = "CHIPS Activity Testnet PDF downloaded successfully!";
+    console.log(`PDF downloaded with ${tableData.length} user activities`);
+  } catch (error) {
+    console.error(`Failed to download PDF: ${error.message}`);
+    document.getElementById('ownerStatus').innerText = "Failed to download PDF. Check console for details.";
+  }
+}
+
+// Render Activity Report
 async function renderActivityReport() {
   try {
-      console.log("Rendering Activity Report...");
-      const activityReportDiv = document.querySelector('.activity-report-section');
-      if (!activityReportDiv) {
-          console.error("Activity Report section not found");
-          document.getElementById('ownerStatus').innerText = "Activity Report section not found.";
-          return;
+    console.log("Rendering Activity Report...");
+    const activityReportDiv = document.querySelector('.activity-report-section');
+    if (!activityReportDiv) {
+      console.error("Activity Report section not found");
+      document.getElementById('ownerStatus').innerText = "Activity Report section not found.";
+      return;
+    }
+
+    activityReportDiv.innerHTML = `
+      <h3>Activity Report</h3>
+      <button id="downloadActivityPdf">Download User Activity PDF</button>
+    `;
+
+    document.getElementById('downloadActivityPdf').onclick = async () => {
+      try {
+        console.log("Generating user activity PDF...");
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.text("User Activity Report", 10, 10);
+
+        // Ambil interaksi dari Firestore
+        const interactions = await getInteractions();
+        const data = interactions.map((interaction) => [
+          interaction.user || 'unknown',
+          `Type: ${interaction.action.type}, Pool: ${interaction.action.poolId}, Time: ${interaction.timestamp}`
+        ]);
+
+        doc.autoTable({
+          head: [['User', 'Actions']],
+          body: data
+        });
+        doc.save('user_activity.pdf');
+        document.getElementById('ownerStatus').innerText = "PDF downloaded successfully!";
+      } catch (error) {
+        console.error("Failed to generate PDF:", error.message);
+        document.getElementById('ownerStatus').innerText = "Failed to download PDF.";
       }
-
-      activityReportDiv.innerHTML = `
-          <h3>Activity Report</h3>
-          <button id="downloadActivityPdf">Download User Activity PDF</button>
-      `;
-
-      document.getElementById('downloadActivityPdf').onclick = async () => {
-          try {
-              console.log("Generating user activity PDF...");
-              const { jsPDF } = window.jspdf;
-              const doc = new jsPDF();
-              doc.text("User Activity Report", 10, 10);
-              const data = Object.entries(userInteractions).map(([user, actions]) => [user, JSON.stringify(actions)]);
-              doc.autoTable({
-                  head: [['User', 'Actions']],
-                  body: data
-              });
-              doc.save('user_activity.pdf');
-              document.getElementById('ownerStatus').innerText = "PDF downloaded successfully!";
-          } catch (error) {
-              console.error("Failed to generate PDF:", error.message);
-              document.getElementById('ownerStatus').innerText = "Failed to download PDF.";
-          }
-      };
-      console.log("Activity Report rendered successfully");
+    };
+    console.log("Activity Report rendered successfully");
   } catch (error) {
-      console.error("Failed to render Activity Report:", error.message);
-      document.getElementById('ownerStatus').innerText = "Failed to load Activity Report.";
+    console.error("Failed to render Activity Report:", error.message);
+    document.getElementById('ownerStatus').innerText = "Failed to load Activity Report.";
   }
 }
 
