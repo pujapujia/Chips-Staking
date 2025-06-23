@@ -13,9 +13,7 @@ const firebaseConfig = {
   messagingSenderId: "190954251209",
   appId: "1:190954251209:web:89e543d2879b578bbebe18"
 };
-// Initialize Firebase
-const firebaseApp = firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+
 // ABI disini (diletakkan di variabel, tapi akan ditunjukkan di bawah kode ini)
 const contractABI = [
     {
@@ -5576,7 +5574,9 @@ async function getContractBalances() {
       document.getElementById('status').innerText = "Failed to fetch contract balances.";
   }
 }
-
+// Initialize Firebase
+const firebaseApp = firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 // Fungsi buat simpan interaksi ke Firestore
 async function addInteraction(user, action) {
   try {
